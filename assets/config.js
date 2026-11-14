@@ -1,7 +1,4 @@
-// Vul hier de gegevens van je Supabase-project in:
-// Supabase > Project Settings > API Keys
-//   SUPABASE_URL      = de Project URL (https://xxxx.supabase.co)
-//   SUPABASE_ANON_KEY = de Publishable key (begint met sb_publishable_) of de legacy "anon" key
+// Gegevens van het Supabase-project van de kerstquiz.
 // Deze sleutel mag openbaar zijn: alle gegevens zijn afgeschermd in de database.
 export const SUPABASE_URL = 'https://zfatuokrcsrpqzrsnlnw.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_J_2a2jvjXt7s9hDsXmbbwg_SfU2gclJ';

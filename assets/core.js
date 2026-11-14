@@ -73,7 +73,20 @@ export function el(tag, props = {}, ...kids) {
   return n;
 }
 
-export const SHAPES = ['▲', '◆', '●', '■'];
+export const SHAPES = ['Kerstbal', 'Kerstboom', 'Ster', 'Sneeuwvlok'];
+const ICON_SVG = [
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9.5" y="2" width="5" height="4" rx="1" fill="currentColor"/><circle cx="12" cy="14" r="8" fill="currentColor"/><path d="M8 11.5a4.5 4.5 0 0 1 3-2.6" stroke="rgba(255,255,255,.55)" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.5 6 9.5h2.8L4.5 15.5h4.3L4 21h6.5v2h3v-2H20l-4.8-5.5h4.3l-4.3-6H18z"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m12 1.8 2.9 6.6 7.1.7-5.4 4.7 1.6 7L12 17.1l-6.2 3.7 1.6-7L2 9.1l7.1-.7z"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9.2 3.8 12 6.6l2.8-2.8M9.2 20.2l2.8-2.8 2.8 2.8M3.4 10.4l3.9-1-1-3.9M20.6 13.6l-3.9 1 1 3.9M3.4 13.6l3.9 1-1 3.9M20.6 10.4l-3.9-1 1-3.9"/></svg>',
+];
+export function icon(i, cls = 'shape') {
+  const n = document.createElement('span');
+  n.className = cls;
+  n.setAttribute('aria-hidden', 'true');
+  n.innerHTML = ICON_SVG[i % 4];
+  return n;
+}
 export const fmt = (n) => Number(n || 0).toLocaleString('nl-NL');
 export const imgSize = (url, w) => (url ? url.replace(/=w\d+-h\d+$/, `=w${w}-h${w}`) : url);
 export const stripes = (cls = '') => el('div', { class: `stripes ${cls}`, 'aria-hidden': 'true' }, el('i'), el('i'), el('i'), el('i'));

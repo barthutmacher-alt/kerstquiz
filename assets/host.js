@@ -57,7 +57,6 @@ function build() {
   ui.txt = el('p', { class: 'txt' });
   ui.stats = el('div', { class: 'stats' });
   ui.next = el('button', { class: 'btn next', type: 'button', onclick: () => go(+1) });
-  ui.skip = el('button', { class: 'btn ghost', type: 'button', onclick: () => go(+2), text: 'Sla tussenstand over' });
   ui.back = el('button', { class: 'btn ghost', type: 'button', onclick: () => go(-1), text: 'Vorige stap' });
   ui.status = el('p', { class: 'muted', role: 'status' });
   ui.autoBox = el('input', { type: 'checkbox', id: 'auto', checked: auto, onchange: (e) => { auto = e.target.checked; store('wb.auto', auto ? '1' : '0'); } });
@@ -70,6 +69,8 @@ function build() {
   ui.signupSum = el('summary');
   ui.players = el('div', { class: 'list' });
   ui.playerSum = el('summary');
+  ui.guesses = el('div', { class: 'list' });
+  ui.guessSum = el('summary');
   ui.jump = el('select', { id: 'jump', 'aria-label': 'Kies een stap' });
 
   const fld = (id, label, input) => el('div', { class: 'field' }, el('label', { for: id, text: label }), input);
@@ -81,7 +82,7 @@ function build() {
       el('a', { href: './', target: '_blank', text: 'Telefoonpagina' })),
     el('section', { class: 'card' },
       el('div', { class: 'now' }, ui.kind, ui.txt), ui.stats, ui.next,
-      el('div', { class: 'row2' }, ui.back, ui.skip),
+      ui.back,
       el('label', { class: 'switch', for: 'auto' }, ui.autoBox, 'Antwoord automatisch tonen als de tijd om is of iedereen heeft geantwoord'),
       ui.status),
     el('details', {}, ui.signupSum, el('div', { style: 'display:grid;gap:10px' },
@@ -91,17 +92,40 @@ function build() {
         fld('pay', 'Betaallink', ui.pay), fld('wa', 'WhatsApp-groep', ui.wa), fld('wbw', 'WieBetaaltWat', ui.wbw),
         fld('max', 'Aantal plekken', ui.max),
         el('button', { class: 'btn', type: 'submit', text: 'Opslaan' }),
-        el('p', { class: 'muted', text: 'Alleen wie een plek heeft, ziet deze links. Lege links tonen "link volgt".' }))),
+        el('p', { class: 'muted', text: 'Wie een plek heeft, ziet de betaallink. Na het betalen tikt iemand zelf op "Ik heb betaald!" en ziet dan meteen de WhatsApp-groep en WieBetaaltWat. Bij Inschrijvingen zie je wie dat deed ("zelf gemeld") en kun je iemand ook zelf op betaald of niet betaald zetten. Lege links tonen "link volgt".' }))),
+    el('details', {}, ui.guessSum, ui.guesses),
     el('details', {}, ui.playerSum, ui.players),
     el('details', {}, el('summary', { text: 'Naar een andere stap' }),
       el('div', { style: 'display:grid;gap:10px' }, ui.jump,
-        el('button', { class: 'btn ghost', type: 'button', onclick: jump, text: 'Ga naar deze stap' }))),
+        confirmBtn('Ga naar deze stap', () => `Zeker? Alle schermen gaan naar "${stepName(S.all_steps[Number(ui.jump.value)])}"`, jump, 'btn ghost'))),
     el('details', { class: 'danger' }, el('summary', { text: 'Opnieuw beginnen' }),
       el('div', { style: 'display:grid;gap:10px' },
-        el('button', { class: 'btn', type: 'button', onclick: () => reset('quiz'), text: 'Quiz opnieuw beginnen (spelers blijven)' }),
-        el('button', { class: 'btn', type: 'button', onclick: () => reset('all'), text: 'Alles wissen na het testen' }),
-        el('p', { class: 'muted', text: 'Alles wissen haalt ook spelers en inschrijvingen weg. Doe dit vóór de borrel, niet erna.' }),
+        confirmBtn('Quiz opnieuw beginnen (spelers blijven)', 'Tik nogmaals: alle antwoorden wissen', () => reset('quiz')),
+        confirmBtn('Alles wissen na het testen', 'Tik nogmaals: spelers, antwoorden en inschrijvingen wissen', () => reset('all')),
+        el('p', { class: 'muted', text: 'Tik twee keer om te bevestigen. Alles wissen haalt ook spelers en inschrijvingen weg. Doe dit vóór de borrel, niet erna.' }),
         el('button', { class: 'btn ghost', type: 'button', onclick: () => { store('wb.pin', null); location.reload(); }, text: 'Uitloggen' }))));
+}
+
+/* Knop die je twee keer moet aantikken (werkt ook waar pop-ups geblokkeerd zijn) */
+function confirmBtn(label, armedLabel, fn, cls = 'btn') {
+  let timer = 0;
+  const b = el('button', { class: cls, type: 'button', text: label, onclick: async () => {
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed');
+      b.textContent = typeof armedLabel === 'function' ? armedLabel() : armedLabel;
+      timer = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    b.disabled = true;
+    const err = await fn();
+    b.disabled = false;
+    if (!b.isConnected) return;
+    b.textContent = err ? `Mislukt: ${err}` : 'Gelukt ✓';
+    timer = setTimeout(disarm, err ? 6000 : 2500);
+  } });
+  const disarm = () => { clearTimeout(timer); b.classList.remove('armed'); b.textContent = label; };
+  return b;
 }
 
 /* ---------- stappen ---------- */
@@ -121,7 +145,8 @@ function stepName(st) {
     case 'answer': return n === 'oefen' ? 'Antwoord oefenvraag' : `Antwoord vraag ${n}`;
     case 'leaderboard': return st.label || 'Tussenstand';
     case 'round_intro': return `${st.label}: intro`;
-    case 'acrostic': return 'Verborgen woord onthullen';
+    case 'connection': return 'Connectie: woordwolk (laatste kans)';
+    case 'connection_reveal': return 'Connectie onthullen';
     case 'podium': return 'Podium met de winnaar';
     case 'announce': return 'De grote onthulling';
     case 'signup': return 'Inschrijving openen';
@@ -168,14 +193,16 @@ function update() {
   const st = [stat(s.players, 'spelers')];
   if (s.kind === 'question') st.push(stat(`${s.answered}`, `van ${s.players} geantwoord`), stat(Math.ceil(timeLeft(s)), 'sec over', { 'data-t': '' }));
   if (s.kind === 'answer') st.push(stat(`${s.answered}`, 'antwoorden'));
+  if (s.conn && (s.conn.open || s.kind === 'connection_reveal')) st.push(stat(s.conn.guesses, 'connectie-gokken'));
   const taken = s.signup_list.filter((x) => !x.removed).length;
+  const paidN = s.signup_list.filter((x) => !x.removed && x.paid).length;
   const max = Number(s.settings.max_spots || 29);
   st.push(stat(`${Math.min(taken, max)}/${max}`, 'ingeschreven'));
+  if (s.kind === 'signup' || s.kind === 'announce') st.push(stat(paidN, 'betaald'));
   ui.stats.replaceChildren(...st);
 
   ui.next.textContent = nxt ? `Volgende: ${stepName(nxt)}` : 'Klaar: de inschrijving staat open';
   ui.next.disabled = !nxt;
-  ui.skip.hidden = !(nxt && nxt.kind === 'leaderboard' && s.all_steps[s.step + 2]);
   ui.back.disabled = s.step === 0;
 
   if (!settingsFilled) {
@@ -186,15 +213,26 @@ function update() {
   }
   if (document.activeElement !== ui.jump) ui.jump.value = String(s.step);
 
-  const listsKey = JSON.stringify([s.signup_list, s.player_list.map((p) => [p.id, p.removed, p.score])]);
+  const listsKey = JSON.stringify([s.signup_list, s.guess_list, s.player_list.map((p) => [p.id, p.removed, p.score])]);
   if (listsKey !== lastLists) {
     lastLists = listsKey;
-    ui.signupSum.textContent = `Inschrijvingen (${taken}${taken > max ? `, waarvan ${taken - max} wachtlijst` : ''})`;
-    ui.signups.replaceChildren(...(s.signup_list.length ? s.signup_list.map((x) => el('div', { class: `item${x.removed ? ' off' : ''}${x.pos > max ? ' wait' : ''}` },
-      el('span', { class: 'grow', text: `${x.removed ? '–' : x.pos}. ${x.full_name}` }),
-      el('span', { class: 'muted', text: x.skier ? 'ski' : 'après' }),
-      el('button', { type: 'button', onclick: () => setSignup(x), text: x.removed ? 'Zet terug' : 'Verwijder' })))
+    ui.signupSum.textContent = `Inschrijvingen (${taken}${taken > max ? `, waarvan ${taken - max} wachtlijst` : ''}, ${paidN} betaald)`;
+    ui.signups.replaceChildren(...(s.signup_list.length ? s.signup_list.map((x) => el('div', { class: `item su${x.removed ? ' off' : ''}${x.pos > max ? ' wait' : ''}` },
+      el('span', { class: 'pos', text: x.removed ? '–' : x.pos > max ? `w${x.pos - max}` : x.pos }),
+      el('span', { class: 'grow', text: x.full_name }),
+      x.removed ? null : x.paid
+        ? confirmBtn(x.paid_self ? 'Betaald ✓ (zelf gemeld)' : 'Betaald ✓', 'Zet op niet betaald?', () => setPaid(x), 'paid')
+        : el('button', { type: 'button', onclick: () => setPaid(x), text: 'Markeer betaald' }),
+      x.removed ? el('button', { type: 'button', onclick: () => setSignup(x), text: 'Zet terug' })
+        : confirmBtn('Verwijder', 'Zeker? Wachtlijst schuift door', () => setSignup(x), 'del')))
       : [el('p', { class: 'muted', text: 'Nog niemand ingeschreven.' })]));
+    const gl = s.guess_list || [];
+    ui.guessSum.textContent = `Connectie-gokken (${gl.length}${gl.length ? `, ${gl.filter((g) => g.correct).length} goed` : ''})`;
+    ui.guesses.replaceChildren(...(gl.length ? gl.map((g) => el('div', { class: `item${g.correct ? ' ok' : ''}` },
+      el('span', { class: 'pos', text: g.at_q > 10 ? 'wolk' : `v${g.at_q}` }),
+      el('span', { class: 'grow' }, el('b', { text: g.name }), ` ${g.guess}`),
+      el('span', { class: 'muted', text: g.correct ? 'goed' : 'fout' })))
+      : [el('p', { class: 'muted', text: 'Nog niemand heeft gegokt. Dat kan tijdens ronde 1 met de knop ‘Ik weet de connectie!’.' })]));
     ui.playerSum.textContent = `Spelers (${s.player_list.filter((p) => !p.removed).length})`;
     ui.players.replaceChildren(...s.player_list.map((p) => el('div', { class: `item${p.removed ? ' off' : ''}` },
       el('span', { class: 'grow', text: p.name }), el('span', { class: 'muted', text: fmt(p.score) }),
@@ -204,8 +242,10 @@ function update() {
 
 /* ---------- acties ---------- */
 async function setSignup(x) {
-  if (!x.removed && !confirm(`${x.full_name} van de lijst halen? De eerste van de wachtlijst schuift dan door.`)) return;
   await act(() => rpc('host_set_signup', { p_pin: pin, p_id: x.id, p_removed: !x.removed }));
+}
+async function setPaid(x) {
+  await act(() => rpc('host_set_paid', { p_pin: pin, p_id: x.id, p_paid: !x.paid }));
 }
 async function setPlayer(p) {
   await act(() => rpc('host_set_player', { p_pin: pin, p_id: p.id, p_removed: !p.removed }));
@@ -216,22 +256,22 @@ async function saveSettings(e) {
 }
 async function jump() {
   const to = Number(ui.jump.value);
-  if (!confirm(`Naar "${stepName(S.all_steps[to])}" springen? Alle schermen gaan mee.`)) return;
   await act(() => rpc('host_goto', { p_pin: pin, p_from: S.step, p_to: to }));
 }
 async function reset(scope) {
-  const word = prompt(scope === 'all' ? 'Typ WIS om alle spelers, antwoorden en inschrijvingen te wissen.' : 'Typ OPNIEUW om alle antwoorden te wissen en terug te gaan naar de lobby.');
-  if (word !== (scope === 'all' ? 'WIS' : 'OPNIEUW')) return;
-  await act(() => rpc('host_reset', { p_pin: pin, p_scope: scope }), 'Gewist');
+  await act(() => rpc('host_reset', { p_pin: pin, p_scope: scope }),
+    scope === 'all' ? 'Alles gewist. De quiz staat weer in de lobby.' : 'Antwoorden gewist. De quiz staat weer in de lobby.');
 }
 async function act(fn, okMsg) {
+  let err = null;
   try { await fn(); if (okMsg) ui.status.textContent = okMsg; }
-  catch (e) { ui.status.textContent = e.message; }
+  catch (e) { err = e.message; ui.status.textContent = e.message; }
   loop.refresh();
+  return err;
 }
 async function copyList() {
   const max = Number(S.settings.max_spots || 29);
-  const rows = S.signup_list.filter((x) => !x.removed).map((x) => `${x.pos}. ${x.full_name} (${x.skier ? 'ski' : 'après'})${x.pos > max ? ' – wachtlijst' : ''}`);
+  const rows = S.signup_list.filter((x) => !x.removed).map((x) => `${x.pos}. ${x.full_name}${x.paid ? ' (betaald)' : ''}${x.pos > max ? ' – wachtlijst' : ''}`);
   try { await navigator.clipboard.writeText(rows.join('\n')); ui.status.textContent = 'Lijst gekopieerd'; }
   catch { ui.status.textContent = rows.join(' · '); }
 }
