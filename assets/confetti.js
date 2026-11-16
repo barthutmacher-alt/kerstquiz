@@ -3,7 +3,7 @@ import { reducedMotion } from './core.js';
 
 const COLORS = ['#E0313F', '#2FB36B', '#F6C445', '#F4F8FB', '#6CCFF6', '#E0313F', '#F6C445'];
 
-export function confettiShow({ duration = 9000, bursts = [0, 600, 1300, 2600, 4200], rain = true } = {}) {
+export function confettiShow({ duration = 9000, bursts = [0, 600, 1300, 2600, 4200], rain = true, amount = 1 } = {}) {
   if (reducedMotion()) return () => {};
   const c = document.createElement('canvas');
   c.className = 'confetti';
@@ -29,20 +29,20 @@ export function confettiShow({ duration = 9000, bursts = [0, 600, 1300, 2600, 42
   }
   function cannon(side) {
     const x = side === 'l' ? 0 : c.width, y = c.height * 1.02;
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 150 * amount; i++) {
       const base = side === 'l' ? -Math.PI / 3.2 : -Math.PI + Math.PI / 3.2;
       const a = base + (Math.random() - 0.5) * 0.55;
       parts.push(piece(x, y, a, (26 + Math.random() * 22) * S * dpr));
     }
   }
   function centerPop() {
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 120 * amount; i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
       parts.push(piece(c.width / 2, c.height * 1.02, a, (24 + Math.random() * 20) * S * dpr));
     }
   }
   function sprinkle() {
-    for (let i = 0; i < 6; i++) parts.push(piece(Math.random() * c.width, -20 * dpr, Math.PI / 2 + (Math.random() - 0.5) * 0.4, (2 + Math.random() * 3) * S * dpr));
+    for (let i = 0; i < 6 * amount; i++) parts.push(piece(Math.random() * c.width, -20 * dpr, Math.PI / 2 + (Math.random() - 0.5) * 0.4, (2 + Math.random() * 3) * S * dpr));
   }
 
   const timers = bursts.map((t, i) => setTimeout(() => {

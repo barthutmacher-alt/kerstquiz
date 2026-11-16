@@ -56,6 +56,7 @@ function render() {
     timers.forEach(clearTimeout); timers = [];
     cancelAnimationFrame(raf);
     if (stopConfetti) { stopConfetti(); stopConfetti = null; }
+    document.querySelector('.searchlights')?.remove();
     snowCanvas.density = S.kind === 'announce' || S.kind === 'signup' ? 220 : S.kind === 'podium' ? 120 : 70;
     draw();
   } else update();
@@ -273,21 +274,43 @@ function drawConnReveal(s) {
     svg.append(ln);
   });
   const ans = (s.answer || '').toUpperCase();
-  const done = 0.4 + placed.length * step + 0.3;
+  const done = 0.4 + placed.length * step + 0.3;      // trap 1: het woord valt
+  const stage2 = done + 3.6;                          // trap 2: de snelste drie vallen in
   const cs = s.conn_stats || {};
-  const stat = cs.first
-    ? `${cs.right} ${cs.right === 1 ? 'speler had' : 'spelers hadden'} het goed. Als eerste: ${cs.first.name}, ${cs.first.at_q === 0 ? 'nog vóór vraag 1' : cs.first.at_q > 10 ? 'bij de woordwolk' : `al bij vraag ${cs.first.at_q}`}.`
-    : 'Niemand had het goed. Dan was het een goede ronde.';
-  frame(el('div', { class: 'conn-sc reveal' }, svg,
+  const top = cs.top || [];
+  const when = (q) => (q === 0 ? 'nog vóór vraag 1' : q > 10 ? 'bij de woordwolk' : `bij vraag ${q}`);
+  const board = el('section', { class: 'conn-top', 'aria-live': 'polite' },
+    el('h2', { text: top.length ? 'Het snelst gezien' : 'Niemand zag het' }),
+    top.length
+      ? el('ol', {}, top.map((t, i) => el('li', { class: `r${i + 1}`, style: `animation-delay:${0.5 + (top.length - 1 - i) * 0.55}s` },
+          el('span', { class: 'n', text: i + 1 }),
+          el('span', { class: 'nm', text: t.name }),
+          el('span', { class: 'at', text: when(t.at_q) }),
+          el('span', { class: 'b', text: `+${fmt(t.bonus)}` }))))
+      : el('p', { class: 'none', text: 'Dan was het een goede ronde.' }),
+    el('p', { class: 'foot', text: `${cs.right || 0} van de ${cs.guessed || 0} gokkers hadden het goed.` }));
+  const sc = el('div', { class: 'conn-sc reveal' }, svg,
     placed.map((w, k) => el('div', { class: 'cw shown', style: `left:${w.x}%;top:${w.y}%;--tilt:${TILT[w.i]}deg;--sz:${SIZE[w.i]}` },
       el('span', { class: 'word', text: w.word }),
       w.link ? el('span', { class: 'link', style: `animation-delay:${0.6 + k * step}s`, text: w.link }) : null)),
     el('div', { class: 'conn-mid' },
-      el('div', { class: 'conn-word', 'aria-label': ans }, [...ans].map((ch, i) => el('span', { style: `animation-delay:${done + i * 0.08}s`, text: ch }))),
-      el('p', { class: 'sub stat', style: `animation-delay:${done + 1.4}s`, text: stat }))), { qr: false });
+      el('div', { class: 'conn-word', 'aria-label': ans }, [...ans].map((ch, i) => el('span', { style: `animation-delay:${done + i * 0.08}s`, text: ch })))),
+    board);
+  frame(sc, { qr: false });
   const t0 = (s.elapsed || 0) * 1000;
   placed.forEach((w, k) => later((0.6 + k * step) * 1000 - t0, () => sound.tick()));
-  later(done * 1000 - t0, () => { sound.reveal(); stopConfetti = confettiShow({ duration: 6000, bursts: [0, 600, 1400], rain: false }); });
+  later(done * 1000 - t0, () => { sound.reveal(); searchlights(); });
+  later(stage2 * 1000 - t0, () => { sc.classList.add('stage2'); sound.whoosh(); });
+  top.forEach((t, i) => later((stage2 + 0.5 + (top.length - 1 - i) * 0.55) * 1000 - t0, () => sound.podiumStep()));
+}
+
+/* Zoeklichten die vanachter de bergen de lucht in zwaaien (in plaats van confetti) */
+function searchlights() {
+  if (document.querySelector('.searchlights')) return;
+  const box = el('div', { class: 'searchlights', 'aria-hidden': 'true' },
+    [12, 33, 67, 88].map((x, i) => el('i', { style: `left:${x}%;--d:${6 + i * 1.3}s;--from:${i % 2 ? 24 : -24}deg;--to:${i % 2 ? -14 : 14}deg;animation-delay:${i * -1.7}s` })));
+  const hills = document.querySelector('.mountains');
+  if (hills) hills.before(box); else document.body.prepend(box);
 }
 
 /* ---------- podium ---------- */
@@ -308,7 +331,7 @@ function drawPodium(s) {
     p1.classList.add('show');
     drum.textContent = 'Gefeliciteerd!';
     sound.fanfare();
-    stopConfetti = confettiShow({ duration: 11000 });
+    stopConfetti = confettiShow({ duration: 5000, bursts: [0, 700, 1500], amount: 0.65 });
   });
 }
 
@@ -321,28 +344,33 @@ function drawAnnounce(s) {
     el('div', { class: 'details' },
       el('p', { class: 'dates', text: a.dates }),
       el('ul', {}, a.lines.map((l) => el('li', { text: l })))),
-    el('p', { class: 'cta', text: a.cta }));
+    el('div', { class: 'cta-row' }, el('p', { class: 'cta', text: a.cta }), el('div', { class: 'sticker tape full', text: a.full_sticker || 'Vol = vol!' })),
+    el('div', { class: 'sticker round spots' }, el('small', { text: 'max.' }), el('b', { text: s.spots ? s.spots.max : 29 }), el('small', { text: 'plekken' })));
   app.replaceChildren(el('div', { class: 'reveal-sc' }, poster), joinMini('corner-qr'));
   const t0 = (s.elapsed || 0) * 1000;
-  later(1300 - t0, () => { sound.jingle(); stopConfetti = confettiShow({ duration: 12000, bursts: [0, 700, 1500, 3200, 5200, 7000] }); });
+  later(1300 - t0, () => { sound.jingle(); stopConfetti = confettiShow({ duration: 5000, bursts: [0, 800, 1700], amount: 0.65 }); });
+  later(3600 - t0, () => sound.podiumStep());
+  later(4300 - t0, () => sound.podiumStep());
 }
 
 /* ---------- inschrijving ---------- */
 function drawSignup(s) {
   const a = s.announce;
   frame(el('div', { class: 'signup-sc' },
-    el('div', { class: 'qcol' }, qrSvg(joinUrl), el('p', { class: 'url', text: joinShort })),
+    el('div', { class: 'qcol' }, qrSvg(joinUrl), el('p', { class: 'scan', text: 'Scan voor inschrijving!' })),
     el('div', { class: 'left' },
       el('h2', { text: `${a.kicker} ${a.year}` }),
       el('p', { class: 'sub', text: a.dates }),
-      el('p', { class: 'rule', text: 'Je plek is definitief zodra je hebt betaald.' }),
+      el('p', { class: 'rule', text: 'Je plek is definitief zodra je de aanbetaling hebt betaald.' }),
+
       el('div', { class: 'leftrow' },
         el('span', { class: 'big-num', 'data-bind': 'left', text: '' }),
         el('span', { class: 'sub', 'data-bind': 'leftlbl', text: '' })),
       el('div', { class: 'seatbar', style: `--max:${s.spots.max}` }, Array.from({ length: s.spots.max }, () => el('i'))),
       el('div', { class: 'chips' }),
       el('p', { class: 'wl', 'data-bind': 'wl' })),
-    slideshow()), { qr: false });
+    el('div', { class: 'slidecol' }, slideshow(),
+      a.deposit ? el('div', { class: 'sticker tape deposit' }, el('small', { text: 'Aanbetaling' }), el('b', { text: a.deposit })) : null)), { qr: false });
   updateSignup();
 }
 

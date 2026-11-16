@@ -489,3 +489,81 @@ body.has-conn .toast { bottom: 112px; }
 .host .item.su button + button { margin-left: 0; }
 .signup-sc { grid-template-columns: auto minmax(0, 1fr) 38vw; }
 .signup-sc .qr { width: 15vw; }
+
+/* ===================== Stickers ===================== */
+.sticker { font-family: var(--display); font-weight: 900; line-height: .95; color: var(--night); pointer-events: none; }
+.sticker.tape { display: inline-grid; justify-items: center; padding: .35em .7em .4em; background: var(--gold); border-radius: .12em; transform: rotate(var(--r, -4deg)); box-shadow: 0 .15em .4em rgba(0,0,0,.35), inset 0 0 0 .08em rgba(255,255,255,.35); }
+.sticker.tape small { font-family: var(--body); font-weight: 700; font-size: .42em; line-height: 1.1; }
+.sticker.round { display: grid; place-content: center; justify-items: center; border-radius: 50%; background: var(--red); color: #fff; box-shadow: 0 .6vw 1.6vw rgba(0,0,0,.4), inset 0 0 0 .45vw var(--red), inset 0 0 0 .7vw rgba(255,255,255,.9); transform: rotate(var(--r, 10deg)); }
+@keyframes slap { 0% { opacity: 0; transform: scale(1.9) rotate(calc(var(--r, 0deg) - 18deg)); } 60% { opacity: 1; transform: scale(.94) rotate(var(--r, 0deg)); } 100% { opacity: 1; transform: scale(1) rotate(var(--r, 0deg)); } }
+
+/* Groot scherm: onthulling */
+.poster .sticker.spots { position: absolute; right: 1vw; top: -1.5vw; width: 13vw; height: 13vw; --r: 9deg; opacity: 0; animation: slap .55s cubic-bezier(.2,1.2,.4,1) 3.6s forwards; }
+.poster .spots small { font-family: var(--body); font-weight: 700; font-size: 1.5vw; }
+.poster .spots b { font-size: 6.4vw; line-height: .9; }
+.poster .cta-row { display: flex; align-items: center; gap: 3vw; margin-top: 2.4vw; }
+.poster .cta-row .cta { margin-top: 0; }
+.poster .sticker.full { font-size: 3.4vw; --r: -6deg; opacity: 0; animation: slap .55s cubic-bezier(.2,1.2,.4,1) 4.3s forwards; }
+
+/* Groot scherm: inschrijving */
+.signup-sc { grid-template-columns: auto minmax(0, 1fr) 42vw; gap: 3vw; }
+.signup-sc .qcol { display: grid; justify-items: center; gap: 1vw; }
+.signup-sc .qr { width: 14vw; }
+.signup-sc .scan { font-family: var(--display); font-weight: 900; font-size: 2vw; color: var(--gold); text-align: center; line-height: 1; }
+.signup-sc .left { position: relative; }
+.signup-sc h2 { font-size: 4.6vw; }
+.signup-sc .sub { font-size: 2.2vw; }
+.signup-sc .rule { font-size: 1.6vw; }
+.signup-sc .left .big-num { font-size: 13vw; }
+.signup-sc .sticker.deposit { position: absolute; right: -1vw; top: 13.5vw; font-size: 3.6vw; --r: 5deg; z-index: 2; opacity: 0; animation: slap .55s cubic-bezier(.2,1.2,.4,1) .8s forwards; }
+
+/* Groot scherm: connectie, tweede trap */
+.searchlights { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; opacity: 0; animation: fadein 1.4s ease forwards; }
+.searchlights i { position: absolute; bottom: 6vh; width: 20vw; height: 125vh; margin-left: -10vw; transform-origin: 50% 100%; transform: rotate(var(--from)); background: linear-gradient(to top, rgba(255,246,220,.6), rgba(255,246,220,.2) 40%, rgba(255,246,220,0) 85%); clip-path: polygon(48% 100%, 52% 100%, 100% 0, 0 0); filter: blur(5px); mix-blend-mode: screen; animation: sweep var(--d) ease-in-out infinite alternate; }
+.searchlights i:nth-child(2) { background: linear-gradient(to top, rgba(246,196,69,.55), rgba(246,196,69,.16) 40%, rgba(246,196,69,0) 85%); }
+.searchlights i:nth-child(3) { background: linear-gradient(to top, rgba(169,214,229,.55), rgba(169,214,229,.16) 40%, rgba(169,214,229,0) 85%); }
+@keyframes sweep { from { transform: rotate(var(--from)); } to { transform: rotate(var(--to)); } }
+.conn-sc .cw, .conn-sc .conn-lines { transition: opacity .9s ease; }
+.conn-sc .conn-mid { transition: top .9s cubic-bezier(.2,1,.4,1), transform .9s cubic-bezier(.2,1,.4,1); }
+.conn-sc.stage2 .cw, .conn-sc.stage2 .conn-lines { opacity: .1; }
+.conn-sc.stage2 .conn-mid { top: 17%; transform: translate(-50%, -50%) scale(.72); }
+.conn-top { position: absolute; left: 50%; top: 60%; z-index: 3; width: 50vw; display: grid; gap: 1.2vw; padding: 1.8vw 2.4vw; border-radius: 1.4vw; background: var(--night-2); box-shadow: 0 0 0 .3vw var(--gold), 0 2vw 5vw rgba(0,0,0,.55); opacity: 0; transform: translate(-50%, -160%) rotate(-3deg); transition: transform .9s cubic-bezier(.2,1.35,.4,1), opacity .3s ease; }
+.conn-sc.stage2 .conn-top { opacity: 1; transform: translate(-50%, -50%); }
+.conn-top h2 { font-size: 3.4vw; }
+.conn-top ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .7vw; }
+.conn-top li { display: grid; grid-template-columns: 3.4vw 1fr auto auto; align-items: baseline; gap: 1.4vw; padding: .5vw 1vw; border-radius: .8vw; background: var(--night); font-size: 2.2vw; opacity: 0; }
+.conn-sc.stage2 .conn-top li { animation: row-in .5s cubic-bezier(.2,1.3,.4,1) forwards; }
+@keyframes row-in { from { opacity: 0; transform: translateX(-3vw); } to { opacity: 1; transform: none; } }
+.conn-top li .n { font-family: var(--display); font-weight: 900; font-size: 3.2vw; line-height: 1; }
+.conn-top li .nm { font-weight: 700; }
+.conn-top li .at { color: var(--ice); font-size: 1.6vw; }
+.conn-top li .b { font-family: var(--display); font-weight: 900; color: var(--gold); }
+.conn-top li.r1 { box-shadow: inset 0 0 0 .2vw var(--gold); }
+.conn-top li.r1 .n { color: var(--gold); }
+.conn-top .foot, .conn-top .none { font-size: 1.6vw; color: var(--ice); }
+
+/* Telefoon: stickers, beknopte poster, wachten op het grote scherm */
+.phone .sticker.tape { font-size: 26px; }
+.phone .sticker.open-now { justify-self: start; align-self: flex-start; --r: -3deg; margin-bottom: -6px; position: relative; z-index: 2; animation: slap .5s cubic-bezier(.2,1.2,.4,1) .2s both; }
+.poster-wrap { position: relative; }
+.poster-wrap .sticker.deposit { position: absolute; right: 0; top: 6px; --r: 7deg; font-size: 30px; animation: slap .5s cubic-bezier(.2,1.2,.4,1) .6s both; }
+.pass .sticker.on-pass { position: absolute; right: 14px; bottom: 12px; font-size: 22px; --r: -8deg; }
+.mini-poster .short { margin-top: 10px; font-size: 18px; font-weight: 500; }
+.dots { display: flex; gap: 10px; margin-top: 18px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--gold); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .searchlights i, .dots i { animation: none; }
+  .sticker, .poster .sticker.spots, .poster .sticker.full, .signup-sc .sticker.deposit { animation: none !important; opacity: 1 !important; }
+}
+/* inschrijfscherm, bijgesteld */
+.signup-sc { grid-template-columns: auto minmax(0, 1fr) 40vw; }
+.signup-sc h2 { font-size: 4vw; white-space: nowrap; }
+.signup-sc .left .big-num { font-size: 11vw; }
+.signup-sc .chips { max-height: 9vw; overflow: hidden; }
+.signup-sc .seatbar { margin: 1.2vw 0; }
+.signup-sc .slidecol { position: relative; }
+.signup-sc .sticker.deposit { position: absolute; left: -2.4vw; right: auto; top: -2.2vw; font-size: 3.4vw; --r: -6deg; }
+.poster-wrap .sticker.deposit { top: 118px; right: 2px; }
+.signup-sc .chips { max-height: 10vw; -webkit-mask-image: linear-gradient(#000 62%, transparent); mask-image: linear-gradient(#000 62%, transparent); }

@@ -11,6 +11,8 @@ let timeUpShown = false;
 let goneNote = false;
 let payNote = false;       // "betalen lukte nog niet" net aangetikt
 let raf = 0;
+let holdTimer = 0;
+let hideScore = false;      // score even verbergen zolang de telefoon op het scherm wacht         // telefoon wacht even op het grote scherm (podium, connectie)
 
 const loop = stateLoop({
   fetch: () => rpc('get_state', { p_token: token || null }),
@@ -38,7 +40,7 @@ function top(s) {
   return [
     el('header', { class: 'ph-top' },
       el('span', { class: 'who', text: me ? me.name : 'Kerstquiz' }),
-      me ? el('span', { class: 'pts', 'data-bind': 'score', text: `${fmt(me.score)} pt` }) : null),
+      me ? el('span', { class: 'pts', 'data-bind': 'score', text: hideScore ? '…' : `${fmt(me.score)} pt` }) : null),
     stripes(),
   ];
 }
@@ -46,6 +48,20 @@ function screen(s, ...main) {
   app.replaceChildren(...top(s), el('main', { class: 'ph-main' }, ...main));
 }
 const center = (...kids) => el('div', { class: 'ph-center' }, ...kids);
+// Laat eerst het grote scherm de uitslag vertellen; de telefoon volgt een paar seconden later.
+function holdUntil(s, sec, wait, real) {
+  const now = (s.elapsed || 0) + (performance.now() - (s._at || performance.now())) / 1000;
+  const left = sec - now;
+  if (left <= 0) { hideScore = false; return real(s); }
+  hideScore = true;
+  wait(s);
+  const key = viewKey;
+  holdTimer = setTimeout(() => { if (viewKey === key) { hideScore = false; real(S); } }, left * 1000);
+}
+const lookUp = (s, title) => screen(s, center(
+  el('h1', { class: 'ph-title', text: title }),
+  el('p', { class: 'ph-lead', text: 'Kijk naar het grote scherm.' }),
+  el('div', { class: 'dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i'))));
 const playersText = (n) => (n === 1 ? '1 collega doet mee' : `${n} collega's doen mee`);
 const playersLine = (s) => el('p', { class: 'muted', 'data-bind': 'players', text: playersText(s.players) });
 
@@ -77,6 +93,8 @@ function render() {
     viewKey = key;
     timeUpShown = false;
     cancelAnimationFrame(raf);
+    clearTimeout(holdTimer);
+    hideScore = false;
     draw();
   } else update();
   updateConn();
@@ -85,7 +103,7 @@ function render() {
 function update() {
   if (!S) return;
   app.querySelectorAll('[data-bind="players"]').forEach((n) => (n.textContent = playersText(S.players)));
-  if (S.me) app.querySelectorAll('[data-bind="score"]').forEach((n) => (n.textContent = `${fmt(S.me.score)} pt`));
+  if (S.me && !hideScore) app.querySelectorAll('[data-bind="score"]').forEach((n) => (n.textContent = `${fmt(S.me.score)} pt`));
   if (S.spots) {
     const left = Math.max(0, S.spots.max - S.spots.taken);
     app.querySelectorAll('[data-bind="left"]').forEach((n) => (n.textContent = left));
@@ -287,6 +305,10 @@ function drawConnCloud(s) {
 }
 
 function drawConnReveal(s) {
+  const at = 0.4 + (s.words ? s.words.length : 10) * 0.7 + 0.3 + 1.5;
+  holdUntil(s, at, (x) => lookUp(x, 'Wat is de connectie?'), drawConnRevealNow);
+}
+function drawConnRevealNow(s) {
   const mine = s.me.conn;
   const ans = s.answer || '';
   let cls, title, sub;
@@ -388,12 +410,16 @@ function closeSheet() {
 }
 
 function drawPodium(s) {
+  // Het scherm onthult de winnaar na 7,3 s; de telefoons volgen 2 s later
+  holdUntil(s, 9.3, (x) => lookUp(x, 'En de winnaar is…'), drawPodiumNow);
+}
+function drawPodiumNow(s) {
   const r = s.me.rank;
   const msg = r === 1 ? 'Je hebt gewonnen!' : r <= 3 ? `Je staat op het podium: ${r}e!` : `Je bent ${r}e geworden`;
   screen(s, center(
     el('h1', { class: 'ph-title', text: msg }),
     el('p', { class: 'ph-lead', text: `${fmt(s.me.score)} punten, van de ${s.players} spelers.` }),
-    el('p', { class: 'muted', text: 'Kijk naar het grote scherm voor de winnaar.' })));
+    el('p', { class: 'muted', text: 'Blijf kijken: er komt nog één ding…' })));
 }
 
 /* ---------- onthulling & inschrijven ---------- */
@@ -402,8 +428,11 @@ function posterBits(a) {
     a.edition ? el('p', { class: 'ed', text: a.edition }) : null,
     el('h1', { text: a.kicker }), el('div', { class: 'yr', text: a.year }),
     el('p', { class: 'dates', text: a.dates }),
-    el('ul', {}, a.lines.map((l) => el('li', { text: l }))));
+    a.short ? el('p', { class: 'short', text: a.short }) : el('ul', {}, a.lines.map((l) => el('li', { text: l }))));
 }
+const depositSticker = (a, cls = '') => (a && a.deposit
+  ? el('div', { class: `sticker tape deposit ${cls}` }, el('small', { text: 'Aanbetaling' }), el('b', { text: a.deposit }))
+  : null);
 
 function drawAnnounce(s) {
   screen(s, posterBits(s.announce), el('p', { class: 'ph-lead', text: 'De inschrijving gaat zo open. Houd je telefoon bij de hand.' }));
@@ -450,7 +479,10 @@ function drawSignup(s) {
     termsBox(),
     btn);
 
-  const kids = [posterBits(s.announce), spotsBox(s)];
+  const kids = [
+    el('div', { class: 'sticker tape open-now', role: 'status', text: 'Inschrijving geopend!' }),
+    el('div', { class: 'poster-wrap' }, posterBits(s.announce), depositSticker(s.announce)),
+    spotsBox(s)];
   if (full) kids.push(el('p', { text: 'Alle plekken zijn bezet. Schrijf je in voor de wachtlijst: valt er iemand af, dan schuif je automatisch door.' }));
   kids.push(form);
   if (token) screen(s, ...kids);
@@ -477,7 +509,7 @@ function drawPass(s, su) {
         el('span', {}, 'Wanneer', el('b', { text: s.announce.dates })),
         el('span', {}, 'Status', el('b', { class: 'pass-status', text: statusText }))),
       el('div', { class: 'pass-code', 'aria-hidden': 'true' })),
-    paid ? el('span', { class: 'stamp', 'aria-hidden': 'true', text: 'Betaald' }) : null);
+    paid ? el('span', { class: 'stamp', 'aria-hidden': 'true', text: 'Betaald' }) : isIn ? depositSticker(s.announce, 'on-pass') : null);
 
   const kids = [];
   if (paid) {
@@ -494,18 +526,18 @@ function drawPass(s, su) {
     kids.push(el('h1', { class: 'ph-title', text: 'Je plek is gereserveerd' }), pass);
     if (!L.pay) {
       kids.push(el('p', { text: 'De betaallink staat nog niet klaar. Bewaar deze pagina, hij verschijnt hier vanzelf.' }),
-        el('div', { class: 'links' }, link(null, 'Betaal je deelname', 'betaallink volgt')));
+        el('div', { class: 'links' }, link(null, 'Betaal de aanbetaling', 'betaallink volgt')));
     } else if (!clicked) {
-      kids.push(el('p', { text: 'Betaal nu om je plek definitief te maken.' }),
+      kids.push(el('p', { text: `Betaal nu de aanbetaling${s.announce.deposit ? ` van ${s.announce.deposit}` : ''} om je plek definitief te maken.` }),
         el('div', { class: 'links' }, el('a', { class: 'btn pink', href: L.pay, target: '_blank', rel: 'noopener', onclick: () => {
           store('wb.payclicked', '1'); payNote = false;
           setTimeout(() => { viewKey = ''; render(); }, 400);
-        } }, 'Betaal je deelname')));
+        } }, 'Betaal de aanbetaling')));
       if (payNote) kids.push(el('p', { class: 'note', role: 'status', text: 'Geen probleem: je plek blijft gereserveerd. Probeer het zo nog een keer.' }));
     } else {
       kids.push(el('section', { class: 'paycheck' },
         el('h2', { text: 'Is het gelukt?' }),
-        el('p', { text: 'Tik op ‘Ik heb betaald!’ zodra je betaling rond is. Dan verschijnen meteen de WhatsApp-groep en de WieBetaaltWat-lijst.' }),
+        el('p', { text: 'Tik op ‘Ik heb betaald!’ zodra je aanbetaling rond is. Dan verschijnen meteen de WhatsApp-groep en de WieBetaaltWat-lijst.' }),
         el('button', { class: 'btn', type: 'button', onclick: (e) => setPaid(true, e.currentTarget) }, 'Ik heb betaald!'),
         el('button', { class: 'btn ghost', type: 'button', onclick: () => { store('wb.payclicked', null); payNote = true; viewKey = ''; render(); } }, 'Betalen lukte nog niet'),
         el('a', { class: 'linkish', href: L.pay, target: '_blank', rel: 'noopener', text: 'Open de betaallink opnieuw' })));
