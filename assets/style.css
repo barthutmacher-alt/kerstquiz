@@ -567,3 +567,85 @@ body.has-conn .toast { bottom: 112px; }
 .signup-sc .sticker.deposit { position: absolute; left: -2.4vw; right: auto; top: -2.2vw; font-size: 3.4vw; --r: -6deg; }
 .poster-wrap .sticker.deposit { top: 118px; right: 2px; }
 .signup-sc .chips { max-height: 10vw; -webkit-mask-image: linear-gradient(#000 62%, transparent); mask-image: linear-gradient(#000 62%, transparent); }
+
+/* ===================== Inschrijving: betaald / bezig met betalen ===================== */
+.seatbar i.paid { background: var(--green); }
+.legend { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--ice); margin: 8px 0 0; }
+.legend i { width: 14px; height: 10px; border-radius: 2px; background: var(--gold); display: inline-block; margin-right: -4px; }
+.legend i.paid { background: var(--green); }
+
+/* Groot scherm: inschrijving met grote diavoorstelling */
+.signup-sc { grid-template-columns: minmax(0, 1fr) 54vw; gap: 3vw; align-items: center; }
+.signup-sc .left { display: grid; gap: .6vw; align-content: center; }
+.signup-sc .head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.8vw; align-items: center; }
+.signup-sc .qcol { display: grid; justify-items: center; gap: .6vw; }
+.signup-sc .qr { width: 10vw; }
+.signup-sc .scan { font-size: 1.3vw; }
+.signup-sc h2 { font-size: 3.6vw; white-space: nowrap; }
+.signup-sc .sub { font-size: 1.6vw; }
+.signup-sc .short { font-size: 1.35vw; font-weight: 700; color: var(--gold); margin-top: .4vw; }
+.signup-sc .leftrow { margin-top: .4vw; }
+.signup-sc .left .big-num { font-size: 9vw; }
+.signup-sc .seatbar { height: 1.6vw; margin: .4vw 0 0; }
+.signup-sc .legend { font-size: 1.15vw; gap: .4vw .9vw; margin: .2vw 0 0; }
+.signup-sc .legend i { width: 1.2vw; height: .8vw; }
+.signup-sc .legend .wl { margin-left: auto; color: var(--snow); font-weight: 700; }
+.signup-sc .chips { margin-top: .4vw; max-height: 6.6vw; }
+.signup-sc .chips span { font-size: 1.15vw; padding: .3vw .8vw; }
+.signup-sc .chips span.paid { background: var(--green); color: var(--night); }
+.signup-sc .chips span:first-child { background: var(--night-2); color: var(--snow); }
+.signup-sc .chips span.paid:first-child { background: var(--green); color: var(--night); }
+.signup-sc .terms-small { font-size: .95vw; line-height: 1.35; color: var(--ice); max-width: 38vw; margin-top: .4vw; }
+.signup-sc .slidecol { align-self: center; }
+.signup-sc .slides figcaption { font-size: 1.1vw; }
+.signup-sc .legend .wl { font-size: inherit; margin-top: 0; }
+
+/* ===================== Bediening: knoppen naast elkaar + meekijken ===================== */
+.host .nav-row { display: grid; grid-template-columns: 1fr 2.2fr; gap: 10px; }
+.host .nav-row .btn { min-height: 56px; font-size: 17px; padding: 8px 12px; }
+.host .next { min-height: 56px; font-size: 17px; }
+.host .switch.small { font-size: 15px; gap: 8px; }
+.host .switch.small input { width: 18px; height: 18px; }
+.host .item .grow small { display: block; font-size: 13px; color: var(--ice); white-space: normal; }
+.host .item.busy { box-shadow: inset 4px 0 0 var(--gold); }
+.previews { display: grid; grid-template-columns: minmax(0, 1fr) 31%; gap: 14px; align-items: start; }
+.previews[hidden] { display: none !important; }
+.previews figure { margin: 0; display: grid; gap: 6px; }
+.previews figcaption { font-size: 13px; color: var(--ice); }
+.pv-frame { position: relative; overflow: hidden; border-radius: 10px; background: #000; box-shadow: 0 0 0 2px var(--night-3); }
+.pv-phone .pv-frame { border-radius: 18px; box-shadow: 0 0 0 4px var(--night-3); }
+.pv-frame iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+body.host.with-preview #app { max-width: none; }
+.host-grid { display: grid; gap: 16px; }
+.host-grid .col-main { display: grid; gap: 16px; align-content: start; min-width: 0; }
+@media (min-width: 900px) {
+  body.host.with-preview #app { padding: 14px 18px 40px; }
+  body.host.with-preview .host-grid { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); align-items: start; }
+  body.host.with-preview .previews { position: sticky; top: 14px; }
+  body.host.with-preview h1 { font-size: 30px; }
+  body.host.with-preview .now .kind { font-size: 32px; }
+}
+@media (max-width: 899px) {
+  .host-grid .previews { order: -1; }
+}
+body.preview .conn-bar { pointer-events: none; }
+
+/* Inschrijfdia: prijsregel over de volle breedte, 'bezig met betalen' goud omrand */
+.signup-sc .sub { font-size: 1.45vw; text-wrap: balance; }
+.signup-sc .short { font-size: 1.3vw; line-height: 1.35; margin-top: .2vw; }
+.signup-sc .short .nw { white-space: nowrap; }
+.signup-sc .chips span.busy, .signup-sc .chips span.busy:first-child { background: var(--night-2); color: var(--snow); box-shadow: inset 0 0 0 .15vw var(--gold); }
+/* telefoon: een scheve sticker mag de pagina nooit breder maken dan het scherm */
+.ph-main { overflow-x: clip; }
+
+.spots .big-num.full { color: var(--red); }
+.spots .queue-note { margin-top: 10px; font-size: 15px; color: var(--gold); font-weight: 600; }
+.spots .queue-note[hidden], .signup-sc .queue[hidden] { display: none; }
+.signup-sc .queue { font-size: 1.3vw; font-weight: 700; color: var(--gold); margin: 0; }
+/* Inschrijfdia compacter, zodat de voorwaarden altijd boven de onderrand blijven */
+.signup-sc .left { gap: .45vw; }
+.signup-sc .left .big-num { font-size: 7.4vw; line-height: .9; }
+.signup-sc .leftrow { margin-top: .2vw; }
+.signup-sc .queue { font-size: 1.15vw; }
+.signup-sc .chips { max-height: 5vw; margin-top: .2vw; }
+.signup-sc .terms-small { font-size: .9vw; max-width: none; }

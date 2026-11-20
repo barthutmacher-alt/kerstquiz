@@ -3,7 +3,10 @@ import { configured, rpc, stateLoop, el, SHAPES, icon, fmt, imgSize, stripes, st
 const app = document.getElementById('app');
 if (!configured) { setupMissing(app); throw new Error('config ontbreekt'); }
 
-let token = store('wb.token');
+// ?preview=1: alleen meekijken (vanuit de bediening), zonder mee te spelen
+const PREVIEW = new URLSearchParams(location.search).has('preview');
+if (PREVIEW) document.body.classList.add('preview');
+let token = PREVIEW ? 'preview' : store('wb.token');
 let S = null;              // laatste stand
 let viewKey = '';
 let local = null;          // { q, choice?, value? } antwoord dat net verstuurd is
@@ -15,9 +18,14 @@ let holdTimer = 0;
 let hideScore = false;      // score even verbergen zolang de telefoon op het scherm wacht         // telefoon wacht even op het grote scherm (podium, connectie)
 
 const loop = stateLoop({
-  fetch: () => rpc('get_state', { p_token: token || null }),
+  fetch: () => rpc('get_state', { p_token: PREVIEW ? null : token || null }),
   onState: (s, err) => {
     if (err && !s) return renderOffline();
+    if (PREVIEW && s) {
+      // meekijken vanaf de bediening: een voorbeeldspeler die het goed had
+      s.me = { name: 'Voorbeeld', score: 0, rank: Math.max(1, Math.round((s.players || 2) / 2)), pos: 1 };
+      if (s.q && s.reveal) Object.assign(s.me, { answer: { choice: (s.reveal.correct || [0])[0], value: s.reveal.correct_num }, points: 900, score: 900 });
+    }
     S = s;
     render();
   },
@@ -66,7 +74,7 @@ const playersText = (n) => (n === 1 ? '1 collega doet mee' : `${n} collega's doe
 const playersLine = (s) => el('p', { class: 'muted', 'data-bind': 'players', text: playersText(s.players) });
 
 function keyFor(s) {
-  if (!token) return `join:${s?.kind === 'signup' ? 'signup' : 'quiz'}`;
+  if (!token) return `join:${s?.kind === 'signup' ? `signup:${s.spots.signed >= s.spots.max ? 'full' : 'open'}` : 'quiz'}`;
   if (!s.me) return 'gone';
   const k = s.kind;
   if (k === 'question') {
@@ -75,7 +83,7 @@ function keyFor(s) {
   }
   if (k === 'signup') {
     const su = s.me.signup;
-    return `s:${su ? su.status + su.pos + (su.paid ? 'p' : '') + (su.paid_self ? 'z' : '') : 'no'}:${s.spots.taken >= s.spots.max ? 'full' : 'open'}:${JSON.stringify(s.me.links || null)}:${store('wb.payclicked') || ''}${payNote ? 'n' : ''}`;
+    return `s:${su ? su.status + su.pos + (su.paid ? 'p' : '') + (su.paid_self ? 'z' : '') + (su.pay_started ? 'b' : '') : 'no'}:${s.spots.signed >= s.spots.max ? 'full' : 'open'}:${JSON.stringify(s.me.links || null)}:${payNote ? 'n' : ''}`;
   }
   if (k === 'connection_reveal') return `cr:${s.step}:${JSON.stringify(s.me.conn || null)}`;
   return `${k}:${s.step}`;
@@ -105,9 +113,11 @@ function update() {
   app.querySelectorAll('[data-bind="players"]').forEach((n) => (n.textContent = playersText(S.players)));
   if (S.me && !hideScore) app.querySelectorAll('[data-bind="score"]').forEach((n) => (n.textContent = `${fmt(S.me.score)} pt`));
   if (S.spots) {
-    const left = Math.max(0, S.spots.max - S.spots.taken);
-    app.querySelectorAll('[data-bind="left"]').forEach((n) => (n.textContent = left));
-    app.querySelectorAll('.seatbar i').forEach((n, i) => n.classList.toggle('on', i < S.spots.taken));
+    const t = spotsText(S);
+    app.querySelectorAll('[data-bind="left"]').forEach((n) => { n.textContent = t.num; n.classList.toggle('full', t.full); });
+    app.querySelectorAll('[data-bind="leftlbl"]').forEach((n) => (n.textContent = t.lead));
+    app.querySelectorAll('[data-bind="queue"]').forEach((n) => { n.textContent = t.note; n.hidden = !t.note; });
+    paintSeats(app.querySelector('.seatbar'), S.spots);
   }
 }
 
@@ -278,7 +288,7 @@ function drawAnswer(s) {
     cls !== 'good' || q.kind === 'estimate' ? el('p', { class: 'correct-was', text: correctText }) : null,
     r.explanation ? el('p', { class: 'explain', text: r.explanation }) : null,
     r.image ? el('img', { class: 'q-img', src: imgSize(r.image, 900), alt: '' }) : null,
-    q.practice ? null : el('p', { class: 'muted', text: `Totaal ${fmt(me.score)} punten, plek ${me.rank} van ${s.players}` }));
+    q.practice ? null : el('p', { class: 'muted', text: `Totaal ${fmt(me.score)} punten` }));
   local = null;
 }
 
@@ -438,23 +448,49 @@ function drawAnnounce(s) {
   screen(s, posterBits(s.announce), el('p', { class: 'ph-lead', text: 'De inschrijving gaat zo open. Houd je telefoon bij de hand.' }));
 }
 
+// De teller telt af zodra iemand op de betaallink tikt. Staan er al genoeg mensen in de rij,
+// dan zegt hij erbij dat nieuwe aanmeldingen op de wachtlijst komen (anders lijkt het alsof er nog plek is).
+function spotsText(s) {
+  const sp = s.spots, left = Math.max(0, sp.max - sp.taken);
+  const su = s.me?.signup;
+  if (sp.paid >= sp.max) return { num: 'Vol!', full: true, lead: `alle ${sp.max} plekken zijn betaald`, note: '' };
+  const queueFull = sp.signed >= sp.max && !(su && su.status === 'in');
+  if (queueFull) return { num: left, full: false, lead: `van de ${sp.max} plekken nog ${left ? 'niet betaald' : 'vrij'}`,
+    note: 'De rij is vol. Betaalt iemand niet of valt iemand af, dan schuift de wachtlijst op volgorde door.' };
+  return { num: left, full: false, lead: `van de ${sp.max} plekken nog vrij`, note: '' };
+}
 function spotsBox(s) {
-  const left = Math.max(0, s.spots.max - s.spots.taken);
+  const t = spotsText(s);
+  const bar = el('div', { class: 'seatbar', style: `--max:${s.spots.max}` }, Array.from({ length: s.spots.max }, () => el('i')));
+  paintSeats(bar, s.spots);
   return el('section', { class: 'spots' },
-    el('div', { class: 'row' }, el('span', { class: 'big-num', 'data-bind': 'left', text: left }), el('span', { class: 'ph-lead', text: `van de ${s.spots.max} plekken nog vrij` })),
-    el('div', { class: 'seatbar', style: `--max:${s.spots.max}` }, Array.from({ length: s.spots.max }, (_, i) => el('i', { class: i < s.spots.taken ? 'on' : '' }))));
+    el('div', { class: 'row' }, el('span', { class: `big-num${t.full ? ' full' : ''}`, 'data-bind': 'left', text: t.num }),
+      el('span', { class: 'ph-lead', 'data-bind': 'leftlbl', text: t.lead })),
+    bar,
+    el('p', { class: 'legend' }, el('i', { class: 'paid' }), 'betaald ', el('i', { class: 'on' }), 'bezig met betalen'),
+    el('p', { class: 'queue-note', 'data-bind': 'queue', hidden: !t.note, text: t.note }));
+}
+// Groen = betaald, goud = bezig met betalen, leeg = nog vrij
+function paintSeats(bar, sp) {
+  if (!bar) return;
+  bar.querySelectorAll('i').forEach((n, i) => {
+    n.classList.toggle('paid', i < sp.paid);
+    n.classList.toggle('on', i >= sp.paid && i < sp.taken);
+  });
 }
 
 function termsBox(a = S?.announce || {}) {
   return el('section', { class: 'terms' },
     el('b', { text: a.terms_title || 'Betaald is definitief' }),
-    el('p', { text: a.terms || 'Je plek is pas zeker als je hebt betaald. Kun je daarna toch niet mee? Dan ben je ongeveer € 100 kwijt, tenzij een collega van de wachtlijst je plek overneemt.' }));
+    el('p', { text: a.terms || '' }));
 }
 
 function drawSignup(s) {
   const su = s.me?.signup;
   if (su) return drawPass(s, su);
-  const full = s.spots.taken >= s.spots.max;
+  const typed = app.querySelector('#fn')?.value || '';   // wat al getypt was niet kwijtraken bij 'rij vol'
+  const hadFocus = document.activeElement?.id === 'fn';
+  const full = s.spots.signed >= s.spots.max;   // de rij is al vol: je komt op de wachtlijst
   const nameIn = el('input', { id: 'fn', maxlength: 60, autocomplete: 'name', required: true, placeholder: 'Voor- en achternaam' });
   const btn = el('button', { class: 'btn pink', type: 'submit', text: full ? 'Zet me op de wachtlijst' : 'Reserveer mijn plek' });
   const form = el('form', { class: 'field', style: 'gap:14px', onsubmit: async (e) => {
@@ -476,6 +512,7 @@ function drawSignup(s) {
     }
   } },
     el('div', { class: 'field' }, el('label', { for: 'fn', text: 'Je naam voor de deelnemerslijst' }), nameIn),
+    full ? el('p', { class: 'note', text: `Er staan al ${s.spots.max} mensen in de rij, dus je komt op de wachtlijst.` }) : null,
     termsBox(),
     btn);
 
@@ -483,11 +520,12 @@ function drawSignup(s) {
     el('div', { class: 'sticker tape open-now', role: 'status', text: 'Inschrijving geopend!' }),
     el('div', { class: 'poster-wrap' }, posterBits(s.announce), depositSticker(s.announce)),
     spotsBox(s)];
-  if (full) kids.push(el('p', { text: 'Alle plekken zijn bezet. Schrijf je in voor de wachtlijst: valt er iemand af, dan schuif je automatisch door.' }));
   kids.push(form);
   if (token) screen(s, ...kids);
   else app.replaceChildren(el('main', { class: 'ph-main' }, ...kids));
-  if (s.me?.name && s.me.name.includes(' ')) nameIn.value = s.me.name;
+  if (typed) nameIn.value = typed;
+  else if (s.me?.name && s.me.name.includes(' ')) nameIn.value = s.me.name;
+  if (hadFocus) nameIn.focus();
 }
 
 function drawPass(s, su) {
@@ -522,7 +560,7 @@ function drawPass(s, su) {
     kids.push(termsBox());
     if (su.paid_self) kids.push(el('button', { class: 'linkish', type: 'button', onclick: () => setPaid(false), text: 'Per ongeluk getikt? Zet terug op niet betaald' }));
   } else if (isIn) {
-    const clicked = store('wb.payclicked') === '1';
+    const clicked = !!su.pay_started;
     kids.push(el('h1', { class: 'ph-title', text: 'Je plek is gereserveerd' }), pass);
     if (!L.pay) {
       kids.push(el('p', { text: 'De betaallink staat nog niet klaar. Bewaar deze pagina, hij verschijnt hier vanzelf.' }),
@@ -530,8 +568,8 @@ function drawPass(s, su) {
     } else if (!clicked) {
       kids.push(el('p', { text: `Betaal nu de aanbetaling${s.announce.deposit ? ` van ${s.announce.deposit}` : ''} om je plek definitief te maken.` }),
         el('div', { class: 'links' }, el('a', { class: 'btn pink', href: L.pay, target: '_blank', rel: 'noopener', onclick: () => {
-          store('wb.payclicked', '1'); payNote = false;
-          setTimeout(() => { viewKey = ''; render(); }, 400);
+          payNote = false;
+          startPayment(true);
         } }, 'Betaal de aanbetaling')));
       if (payNote) kids.push(el('p', { class: 'note', role: 'status', text: 'Geen probleem: je plek blijft gereserveerd. Probeer het zo nog een keer.' }));
     } else {
@@ -539,23 +577,31 @@ function drawPass(s, su) {
         el('h2', { text: 'Is het gelukt?' }),
         el('p', { text: 'Tik op ‘Ik heb betaald!’ zodra je aanbetaling rond is. Dan verschijnen meteen de WhatsApp-groep en de WieBetaaltWat-lijst.' }),
         el('button', { class: 'btn', type: 'button', onclick: (e) => setPaid(true, e.currentTarget) }, 'Ik heb betaald!'),
-        el('button', { class: 'btn ghost', type: 'button', onclick: () => { store('wb.payclicked', null); payNote = true; viewKey = ''; render(); } }, 'Betalen lukte nog niet'),
+        el('button', { class: 'btn ghost', type: 'button', onclick: () => { payNote = true; startPayment(false); } }, 'Betalen lukte nog niet'),
         el('a', { class: 'linkish', href: L.pay, target: '_blank', rel: 'noopener', text: 'Open de betaallink opnieuw' })));
     }
     kids.push(termsBox());
   } else {
     kids.push(el('h1', { class: 'ph-title', text: 'Je staat op de wachtlijst' }), pass,
-      el('p', { text: 'Valt er iemand af, dan schuif je automatisch door. Deze pagina laat dan vanzelf de betaallink zien.' }));
+      el('p', { text: `Je bent nummer ${su.wait_pos} op de wachtlijst. De eerste ${s.spots.max} in de rij mogen betalen. Valt er iemand af, dan schuif je automatisch door en verschijnt hier vanzelf de betaallink.` }));
   }
   kids.push(spotsBox(s));
   screen(s, ...kids);
+}
+
+async function startPayment(start) {
+  try {
+    await rpc('start_payment', { p_token: token, p_start: start });
+  } catch (err) { toast(err.message); }
+  viewKey = '';
+  loop.refresh();
 }
 
 async function setPaid(paid, btn) {
   if (btn) btn.disabled = true;
   try {
     await rpc('mark_paid', { p_token: token, p_paid: paid });
-    store('wb.payclicked', null); payNote = false;
+    payNote = false;
     if (paid && navigator.vibrate) navigator.vibrate([30, 60, 30]);
     viewKey = '';
     loop.refresh();

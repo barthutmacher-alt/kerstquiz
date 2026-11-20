@@ -12,7 +12,7 @@ let S = null, viewKey = '', raf = 0, timers = [], lastTickSec = null, stopConfet
 
 mountDecor();
 const soundBtn = el('button', { class: 'sound-btn', type: 'button', onclick: () => { sound.toggle(); soundBtn.textContent = sound.on ? 'Geluid uit' : 'Geluid aan'; }, text: 'Geluid aan' });
-document.body.append(soundBtn);
+if (!new URLSearchParams(location.search).has('preview')) document.body.append(soundBtn);
 
 stateLoop({
   fetch: () => rpc('get_state', { p_token: null, p_screen: true }),
@@ -357,21 +357,32 @@ function drawAnnounce(s) {
 function drawSignup(s) {
   const a = s.announce;
   frame(el('div', { class: 'signup-sc' },
-    el('div', { class: 'qcol' }, qrSvg(joinUrl), el('p', { class: 'scan', text: 'Scan voor inschrijving!' })),
     el('div', { class: 'left' },
-      el('h2', { text: `${a.kicker} ${a.year}` }),
-      el('p', { class: 'sub', text: a.dates }),
-      el('p', { class: 'rule', text: 'Je plek is definitief zodra je de aanbetaling hebt betaald.' }),
-
+      el('div', { class: 'head' },
+        el('div', { class: 'qcol' }, qrSvg(joinUrl), el('p', { class: 'scan', text: 'Scan voor inschrijving!' })),
+        el('div', {},
+          el('h2', { text: `${a.kicker} ${a.year}` }),
+          el('p', { class: 'sub', text: a.dates }))),
+      shortLine(a),
       el('div', { class: 'leftrow' },
         el('span', { class: 'big-num', 'data-bind': 'left', text: '' }),
         el('span', { class: 'sub', 'data-bind': 'leftlbl', text: '' })),
+      el('p', { class: 'queue', 'data-bind': 'queue', hidden: true, text: 'De rij is vol: nieuwe aanmeldingen komen op de wachtlijst.' }),
       el('div', { class: 'seatbar', style: `--max:${s.spots.max}` }, Array.from({ length: s.spots.max }, () => el('i'))),
+      el('p', { class: 'legend' }, el('i', { class: 'paid' }), 'betaald', el('i', { class: 'on' }), 'bezig met betalen',
+        el('span', { class: 'wl', 'data-bind': 'wl' })),
       el('div', { class: 'chips' }),
-      el('p', { class: 'wl', 'data-bind': 'wl' })),
-    el('div', { class: 'slidecol' }, slideshow(),
-      a.deposit ? el('div', { class: 'sticker tape deposit' }, el('small', { text: 'Aanbetaling' }), el('b', { text: a.deposit })) : null)), { qr: false });
+      a.terms ? el('p', { class: 'terms-small', text: a.terms }) : null),
+    el('div', { class: 'slidecol' }, slideshow())), { qr: false });
   updateSignup();
+}
+
+/* "Zelfde huis, ± € 270 all-in (niet-skiër ± € 80 minder), aanbetaling € 45", netjes afgebroken */
+function shortLine(a) {
+  const parts = (a.short || '').split(/(?=\()/);   // het deel tussen haakjes blijft bij elkaar
+  const kids = parts.map((t, i) => el('span', { class: i ? 'nw' : '', text: t + (i < parts.length - 1 ? ' ' : '') }));
+  if (a.deposit) kids.push(', ', el('span', { class: 'nw', text: `aanbetaling ${a.deposit}` }));
+  return el('p', { class: 'short' }, ...kids);
 }
 
 /* Diavoorstelling met alle foto's uit het album, in willekeurige volgorde */
@@ -408,15 +419,31 @@ function slideshow() {
 
 function updateSignup() {
   const s = S;
-  const left = Math.max(0, s.spots.max - s.spots.taken);
+  const sp = s.spots;
+  const left = Math.max(0, sp.max - sp.taken);
   const big = app.querySelector('[data-bind="left"]');
   if (!big) return;
-  big.textContent = left === 0 ? 'Vol!' : left;
-  big.classList.toggle('full', left === 0);
-  app.querySelector('[data-bind="leftlbl"]').textContent = left === 0 ? 'De wachtlijst is open.' : left === 1 ? 'plek over' : 'plekken over';
-  app.querySelectorAll('.seatbar i').forEach((n, i) => n.classList.toggle('on', i < s.spots.taken));
-  const inNames = (s.signups || []).slice(0, s.spots.max);
-  fillChips(app.querySelector('.chips'), inNames.slice().reverse(), 40);
-  const wl = Math.max(0, s.spots.taken - s.spots.max);
-  app.querySelector('[data-bind="wl"]').textContent = wl ? `${wl} op de wachtlijst` : '';
+  const done = sp.paid >= sp.max;
+  big.textContent = done ? 'Vol!' : left;
+  big.classList.toggle('full', done);
+  const queueFull = !done && sp.signed >= sp.max;   // nieuwe aanmeldingen gaan naar de wachtlijst
+  app.querySelector('[data-bind="leftlbl"]').textContent = done ? 'Alle plekken zijn definitief.'
+    : left === 0 ? `Nog ${sp.pending} bezig met betalen.`
+    : queueFull ? (left === 1 ? 'plek nog niet betaald' : 'plekken nog niet betaald')
+    : left === 1 ? 'plek over' : 'plekken over';
+  const q = app.querySelector('[data-bind="queue"]');
+  if (q) q.hidden = !queueFull;
+  app.querySelectorAll('.seatbar i').forEach((n, i) => {
+    n.classList.toggle('paid', i < sp.paid);
+    n.classList.toggle('on', i >= sp.paid && i < sp.taken);
+  });
+  // Namen van wie betaald heeft (groen) of aan het betalen is; nieuwste vooraan
+  const box = app.querySelector('.chips');
+  const list = (s.signups || []).slice().reverse().slice(0, 40);
+  const key = list.map((x) => `${x.n}${x.paid ? '+' : ''}`).join('|');
+  if (box && box.dataset.k !== key) {
+    box.dataset.k = key;
+    box.replaceChildren(...list.map((x) => el('span', { class: x.paid ? 'paid' : 'busy', text: x.n })));
+  }
+  app.querySelector('[data-bind="wl"]').textContent = sp.waiting ? `${sp.waiting} op de wachtlijst` : '';
 }

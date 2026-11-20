@@ -57,7 +57,7 @@ function build() {
   ui.txt = el('p', { class: 'txt' });
   ui.stats = el('div', { class: 'stats' });
   ui.next = el('button', { class: 'btn next', type: 'button', onclick: () => go(+1) });
-  ui.back = el('button', { class: 'btn ghost', type: 'button', onclick: () => go(-1), text: 'Vorige stap' });
+  ui.back = el('button', { class: 'btn ghost back', type: 'button', onclick: () => go(-1), text: '‹ Vorige' });
   ui.status = el('p', { class: 'muted', role: 'status' });
   ui.autoBox = el('input', { type: 'checkbox', id: 'auto', checked: auto, onchange: (e) => { auto = e.target.checked; store('wb.auto', auto ? '1' : '0'); } });
 
@@ -75,14 +75,21 @@ function build() {
 
   const fld = (id, label, input) => el('div', { class: 'field' }, el('label', { for: id, text: label }), input);
 
-  app.replaceChildren(
+  // Meekijken: het grote scherm en een deelnemerstelefoon, verkleind (alleen kijken, niet aantikken)
+  ui.previewBox = el('input', { type: 'checkbox', id: 'pv', checked: showPreview(), onchange: (e) => { store('wb.preview', e.target.checked ? '1' : '0'); placePreviews(); } });
+  ui.previews = el('aside', { class: 'previews', 'aria-label': 'Voorbeeld van de schermen' },
+    el('figure', { class: 'pv-screen' }, el('div', { class: 'pv-frame' }), el('figcaption', { text: 'Groot scherm' })),
+    el('figure', { class: 'pv-phone' }, el('div', { class: 'pv-frame' }), el('figcaption', { text: 'Telefoon deelnemer' })));
+
+  const main = el('div', { class: 'col-main' },
     el('h1', { text: 'Bediening' }),
     el('nav', { class: 'links-nav' },
       el('a', { href: 'scherm.html', target: '_blank', text: 'Groot scherm openen' }),
-      el('a', { href: './', target: '_blank', text: 'Telefoonpagina' })),
+      el('a', { href: './', target: '_blank', text: 'Telefoonpagina' }),
+      el('label', { class: 'switch small', for: 'pv' }, ui.previewBox, 'Meekijken')),
     el('section', { class: 'card' },
-      el('div', { class: 'now' }, ui.kind, ui.txt), ui.stats, ui.next,
-      ui.back,
+      el('div', { class: 'now' }, ui.kind, ui.txt), ui.stats,
+      el('div', { class: 'nav-row' }, ui.back, ui.next),
       el('label', { class: 'switch', for: 'auto' }, ui.autoBox, 'Antwoord automatisch tonen als de tijd om is of iedereen heeft geantwoord'),
       ui.status),
     el('details', {}, ui.signupSum, el('div', { style: 'display:grid;gap:10px' },
@@ -104,7 +111,36 @@ function build() {
         confirmBtn('Alles wissen na het testen', 'Tik nogmaals: spelers, antwoorden en inschrijvingen wissen', () => reset('all')),
         el('p', { class: 'muted', text: 'Tik twee keer om te bevestigen. Alles wissen haalt ook spelers en inschrijvingen weg. Doe dit vóór de borrel, niet erna.' }),
         el('button', { class: 'btn ghost', type: 'button', onclick: () => { store('wb.pin', null); location.reload(); }, text: 'Uitloggen' }))));
+  app.replaceChildren(el('div', { class: 'host-grid' }, main, ui.previews));
+  placePreviews();
 }
+
+/* ---------- meekijken ---------- */
+function showPreview() {
+  const v = store('wb.preview');
+  return v ? v === '1' : window.matchMedia('(min-width: 900px)').matches;
+}
+function placePreviews() {
+  const on = showPreview();
+  ui.previews.hidden = !on;
+  document.body.classList.toggle('with-preview', on);
+  const [scr, ph] = ui.previews.querySelectorAll('.pv-frame');
+  if (!on) { scr.replaceChildren(); ph.replaceChildren(); return; }
+  if (!scr.firstChild) scr.append(el('iframe', { src: 'scherm.html?preview=1', title: 'Groot scherm', tabindex: '-1', width: 1600, height: 900 }));
+  if (!ph.firstChild) ph.append(el('iframe', { src: './?preview=1', title: 'Telefoon deelnemer', tabindex: '-1', width: 390, height: 800 }));
+  if (!ui.ro) { ui.ro = new ResizeObserver(() => fitPreviews()); ui.ro.observe(ui.previews); }
+  fitPreviews();
+}
+function fitPreviews() {
+  ui.previews?.querySelectorAll('.pv-frame').forEach((box) => {
+    const f = box.firstChild;
+    if (!f) return;
+    const k = box.clientWidth / Number(f.getAttribute('width'));
+    f.style.transform = `scale(${k})`;
+    box.style.height = `${Number(f.getAttribute('height')) * k}px`;
+  });
+}
+window.addEventListener('resize', () => fitPreviews());
 
 /* Knop die je twee keer moet aantikken (werkt ook waar pop-ups geblokkeerd zijn) */
 function confirmBtn(label, armedLabel, fn, cls = 'btn') {
@@ -197,8 +233,11 @@ function update() {
   const taken = s.signup_list.filter((x) => !x.removed).length;
   const paidN = s.signup_list.filter((x) => !x.removed && x.paid).length;
   const max = Number(s.settings.max_spots || 29);
-  st.push(stat(`${Math.min(taken, max)}/${max}`, 'ingeschreven'));
-  if (s.kind === 'signup' || s.kind === 'announce') st.push(stat(paidN, 'betaald'));
+  if (s.kind === 'signup' || s.kind === 'announce') {
+    const sp = s.spots || { paid: paidN, pending: 0, waiting: 0 };
+    st.push(stat(`${sp.paid}/${max}`, 'betaald'), stat(sp.pending, 'bezig met betalen'), stat(taken, 'aanmeldingen'));
+    if (sp.waiting) st.push(stat(sp.waiting, 'wachtlijst'));
+  }
   ui.stats.replaceChildren(...st);
 
   ui.next.textContent = nxt ? `Volgende: ${stepName(nxt)}` : 'Klaar: de inschrijving staat open';
@@ -217,11 +256,13 @@ function update() {
   if (listsKey !== lastLists) {
     lastLists = listsKey;
     ui.signupSum.textContent = `Inschrijvingen (${taken}${taken > max ? `, waarvan ${taken - max} wachtlijst` : ''}, ${paidN} betaald)`;
-    ui.signups.replaceChildren(...(s.signup_list.length ? s.signup_list.map((x) => el('div', { class: `item su${x.removed ? ' off' : ''}${x.pos > max ? ' wait' : ''}` },
+    const state = (x) => x.removed ? 'verwijderd' : x.is_host ? 'organisator' : x.paid ? (x.paid_self ? 'betaald (zelf gemeld)' : 'betaald')
+      : x.pos > max ? 'wachtlijst' : x.pay_started ? 'bezig met betalen' : 'aangemeld, nog niet op de betaallink getikt';
+    ui.signups.replaceChildren(...(s.signup_list.length ? s.signup_list.map((x) => el('div', { class: `item su${x.removed ? ' off' : ''}${x.pos > max ? ' wait' : ''}${x.pay_started && !x.paid ? ' busy' : ''}` },
       el('span', { class: 'pos', text: x.removed ? '–' : x.pos > max ? `w${x.pos - max}` : x.pos }),
-      el('span', { class: 'grow', text: x.full_name }),
+      el('span', { class: 'grow' }, x.full_name, el('small', { text: state(x) })),
       x.removed ? null : x.paid
-        ? confirmBtn(x.paid_self ? 'Betaald ✓ (zelf gemeld)' : 'Betaald ✓', 'Zet op niet betaald?', () => setPaid(x), 'paid')
+        ? confirmBtn('Betaald ✓', 'Zet op niet betaald?', () => setPaid(x), 'paid')
         : el('button', { type: 'button', onclick: () => setPaid(x), text: 'Markeer betaald' }),
       x.removed ? el('button', { type: 'button', onclick: () => setSignup(x), text: 'Zet terug' })
         : confirmBtn('Verwijder', 'Zeker? Wachtlijst schuift door', () => setSignup(x), 'del')))
